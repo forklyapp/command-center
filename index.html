@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Command Center</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Command">
+<meta name="theme-color" content="#0A0D16">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#0A0D16; --glass:rgba(10,13,22,.72); --line:rgba(255,255,255,.12); --text:#EEF2F7; --muted:#9AA6B4;
+  --amber:#FFB020; --cyan:#3FD0E0;
+  box-sizing:border-box; color-scheme:dark;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --ground:#0A0D16; } }
+:root[data-theme="dark"]{ --ground:#0A0D16; }
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;background:var(--ground);color:var(--text);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;overscroll-behavior:none}
+#backdrop{position:fixed;inset:-40px;background-size:cover;background-position:center;filter:blur(28px) brightness(.55);display:none}
+body.contain #backdrop{display:block}
+#world{position:fixed;left:0;top:0;width:941px;height:1672px;transform-origin:0 0;will-change:transform}
+#world img,#fx,#gl{position:absolute;left:0;top:0;width:941px;height:1672px;display:block;user-select:none;-webkit-user-drag:none}
+#fx,#gl{pointer-events:none}
+body.gl #city{visibility:hidden}
+body:not(.gl) #gl{display:none}
+#touch{position:fixed;inset:0;z-index:3;touch-action:none;cursor:grab}
+#touch.drag{cursor:grabbing}
+.shade{position:fixed;inset:0;pointer-events:none;background:linear-gradient(rgba(6,8,14,.55),rgba(6,8,14,0) 18%,rgba(6,8,14,0) 62%,rgba(6,8,14,.75))}
+
+.hud{position:fixed;left:0;right:0;top:0;z-index:5;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
+.hud > *{pointer-events:auto}
+.total{all:unset;cursor:pointer;display:block;padding:6px 10px 8px;border-radius:14px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.total:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.cap{font:600 10px/1.2 "Chakra Petch",sans-serif;letter-spacing:.22em;color:var(--muted)}
+.big{font:500 26px/1.1 "IBM Plex Mono",monospace;letter-spacing:-.02em}
+.up{font:500 12px "IBM Plex Mono",monospace;color:var(--cyan);margin-left:6px}
+.pill{min-height:44px;display:flex;align-items:center;gap:8px;padding:0 14px;border-radius:14px;border:1px solid rgba(255,176,32,.45);background:var(--glass);color:#FFD27A;font:600 12px "Chakra Petch",sans-serif;letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+
+.chip{position:fixed;left:0;top:0;z-index:4;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:36px;padding:5px 9px 6px;border-radius:10px;border:1px solid var(--c);background:rgba(8,10,18,.68);color:var(--text);cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 0 16px -4px var(--c);white-space:nowrap}
+.chip .n{font:600 9px/1 "Chakra Petch",sans-serif;letter-spacing:.16em;color:var(--c)}
+.chip .v{font:500 14px/1.15 "IBM Plex Mono",monospace}
+.chip.ops{padding:6px 10px;align-items:center}
+.chip.ops .n{font-size:11px;letter-spacing:.26em}
+.chip:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:5;width:min(560px,calc(100% - 20px));padding:10px;border-radius:20px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.dock-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 8px}
+.dock-head .live{font:500 10px "Chakra Petch",sans-serif;letter-spacing:.16em;color:var(--muted)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);margin-right:6px;vertical-align:1px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.card{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:9px 11px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-left:3px solid var(--c);min-height:44px}
+.card:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.card .n{font:600 10px "Chakra Petch",sans-serif;letter-spacing:.16em;color:var(--c)}
+.card .v{font:500 18px/1.15 "IBM Plex Mono",monospace}
+.card .v i{font-style:normal;font-size:11px;color:var(--cyan);margin-left:6px}
+.card .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.pass{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(6,9,14,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.pass[hidden]{display:none}
+.pass form{width:min(320px,86vw);background:#0B1017;border:1px solid #22303E;border-radius:18px;padding:20px}
+.pass input{width:100%;min-height:48px;border-radius:12px;border:1px solid #2A3644;background:#07090C;color:var(--text);padding:0 14px;font:500 16px "IBM Plex Mono",monospace}
+.scrim{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{width:100%;max-width:520px;background:#0B1017;border:1px solid #22303E;border-bottom:0;border-radius:20px 20px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateY(30px);transition:transform .25s}
+.scrim.on .sheet{transform:none}
+.sheet h2{margin:0;font:600 22px "Chakra Petch",sans-serif;letter-spacing:.04em}
+.sheet .sub{color:var(--muted);font-size:14px;margin:2px 0 14px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.stat{background:#0F151D;border:1px solid #22303E;border-radius:12px;padding:10px}
+.stat small{display:block;color:var(--muted);font-size:12px}
+.stat b{font:500 18px "IBM Plex Mono",monospace}
+.doing{background:#0F151D;border:1px solid #22303E;border-radius:12px;padding:12px;font-size:14px;line-height:1.45;color:#C9D3DC;margin-bottom:12px}
+.deps{max-height:38vh;overflow:auto}
+.dep{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #18212B;font-size:14px}
+.dep b{font:500 14px "IBM Plex Mono",monospace;color:var(--cyan)}
+.dep small{display:block;color:var(--muted);font-size:12px}
+.btn{width:100%;min-height:48px;border-radius:12px;border:1px solid #2A3644;background:transparent;color:#C9D3DC;font:700 14px "Chakra Petch",sans-serif;letter-spacing:.1em;cursor:pointer}
+.btn.primary{background:var(--amber);border:0;color:#07090C}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){.scrim,.sheet{transition:none}}
+</style>
+</head>
+<body>
+<div id="backdrop"></div>
+<div id="world"><canvas id="gl" width="941" height="1672"></canvas><img id="city" alt="Night skyline of your business city: four signature skyscrapers around a central needle tower, above a terraced city in the fog."><canvas id="fx" width="941" height="1672"></canvas></div>
+<div class="shade"></div>
+<div id="touch" aria-hidden="true"></div>
+
+<div class="hud">
+  <button class="total" id="hudBtn" type="button" aria-label="Switch between today, this week and this month"><div class="cap" id="hudCap">THIS WEEK</div><div><span class="big" id="hudTotal">—</span><span class="up" id="hudTrend"></span></div></button>
+  <div style="display:flex;gap:8px"><a class="pill" id="exploreBtn" href="https://marble.worldlabs.ai/world/a4dcf8d2-2110-4bae-8a9b-4806b29b843e" target="_blank" rel="noopener" aria-label="Explore the city in 3D" style="text-decoration:none">3D</a><button class="pill" type="button" id="depBtn">DEPOSITS</button></div>
+</div>
+<div id="chips"></div>
+
+<section class="dock" aria-label="Your businesses">
+  <div class="dock-head"><span class="cap" id="dockCap">THIS WEEK</span><span class="live" id="live">CONNECTING…</span></div>
+  <div class="cards" id="cards"></div>
+</section>
+
+<div class="pass" id="pass" hidden><form id="passForm"><div class="cap" style="margin-bottom:8px">COMMAND CENTER</div><label for="passIn" style="display:block;font-size:14px;color:#C9D3DC;margin-bottom:8px">Passcode</label><input id="passIn" type="password" autocomplete="current-password"><button class="btn primary" style="margin-top:12px">ENTER</button><p id="passErr" style="color:#FF8A7A;font-size:13px;min-height:18px;margin:8px 0 0"></p></form></div>
+<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
+  <h2 id="sh-t"></h2><div class="sub" id="sh-s"></div>
+  <div class="grid3" id="sh-g"></div>
+  <div class="doing" id="sh-d"></div>
+  <button class="btn" type="button" id="sh-x">Close</button>
+</div></div>
+
+<script>
+(function(){
+"use strict";
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SCENES = {
+  phone: { src: "city-phone.jpg", IW: 941, IH: 1672, k: 1, KC: [517, 420], cover: false,
+    biz: { muir: { tip: [318, 292], mid: [320, 430], chip: [318, 470] }, cards: { tip: [406, 280], mid: [408, 410], chip: [408, 362] },
+           pantreo: { tip: [628, 226], mid: [628, 400], chip: [628, 336] }, clips: { tip: [765, 288], mid: [778, 460], chip: [778, 640] } },
+    needle: { tip: [518, 76], saucer: [517, 190], chip: [588, 214], rx: 58, ry: 20 },
+    screen: [[751, 318], [806, 310], [806, 606], [752, 612]],
+    towers: [[[290,300],[340,290],[352,595],[285,598]], [[385,285],[430,280],[442,548],[375,550]], [[505,70],[530,70],[556,580],[478,582]], [[612,222],[645,222],[665,560],[595,562]], [[718,286],[810,286],[812,655],[714,660]]],
+    depth: Y => Y < 220 ? 0 : Y < 560 ? 0.04 + (Y - 220) / 340 * 0.26 : 0.30 + (Y - 560) / (1672 - 560) * 0.7,
+    lightsFrom: 330,
+    lanes: [ { a: [-60, 905], b: [1000, 735], col: "120,220,255" }, { a: [1000, 1330], b: [-80, 1530], col: "255,90,180" }, { a: [-60, 690], b: [980, 560], col: "190,150,255" },
+             { a: [990, 1010], b: [-50, 1190], col: "120,220,255" }, { a: [-80, 1250], b: [1000, 1060], col: "255,200,120" }, { a: [980, 760], b: [520, 830], col: "255,90,180" } ],
+    fog: [{ y: 1150, h: 300, a: 0.55, v: 0.12 }, { y: 1430, h: 280, a: 0.75, v: 0.2 }, { y: 820, h: 220, a: 0.35, v: 0.08 }] },
+  wide: { src: "city-wide.jpg", IW: 1672, IH: 941, k: 0.6, KC: [837, 330], cover: true,
+    biz: { muir: { tip: [718, 102], mid: [718, 250], chip: [632, 215] }, cards: { tip: [785, 152], mid: [785, 250], chip: [765, 140] },
+           pantreo: { tip: [903, 95], mid: [903, 250], chip: [905, 402] }, clips: { tip: [987, 123], mid: [993, 260], chip: [1080, 215] } },
+    needle: { tip: [838, 46], saucer: [837, 109], chip: [880, 52], rx: 30, ry: 9 },
+    screen: [[984, 168], [1012, 166], [1012, 356], [985, 358]],
+    towers: [[[712,98],[730,98],[740,356],[693,358]], [[768,150],[802,150],[806,346],[765,346]], [[828,40],[848,40],[864,352],[812,352]], [[897,92],[910,92],[927,352],[878,352]], [[970,120],[1004,120],[1020,360],[968,360]]],
+    depth: Y => Y < 200 ? 0 : Y < 400 ? 0.04 + (Y - 200) / 200 * 0.26 : 0.30 + (Y - 400) / (941 - 400) * 0.7,
+    lightsFrom: 240,
+    lanes: [ { a: [-60, 560], b: [1730, 430], col: "120,220,255" }, { a: [1730, 700], b: [-60, 830], col: "255,90,180" }, { a: [-60, 330], b: [1730, 280], col: "190,150,255" },
+             { a: [1730, 520], b: [620, 600], col: "120,220,255" }, { a: [-60, 760], b: [1730, 610], col: "255,200,120" }, { a: [300, 960], b: [1400, 690], col: "255,90,180" } ],
+    fog: [{ y: 290, h: 120, a: 0.35, v: 0.06 }, { y: 560, h: 220, a: 0.5, v: 0.12 }, { y: 760, h: 220, a: 0.7, v: 0.2 }] }
+};
+const SCENE_KEY = innerWidth / innerHeight >= 1 ? "wide" : "phone", SC = SCENES[SCENE_KEY];
+const IW = SC.IW, IH = SC.IH;
+const img = document.getElementById("city"), world = document.getElementById("world"), fx = document.getElementById("fx"), g = fx.getContext("2d");
+img.src = SC.src; world.style.width = IW + "px"; world.style.height = IH + "px";
+["city", "fx", "gl"].forEach(id => { const el = document.getElementById(id); el.style.width = IW + "px"; el.style.height = IH + "px"; });
+document.getElementById("backdrop").style.backgroundImage = `url("${SC.src}")`;
+
+/* ---------- towers (pixel positions in the image) ---------- */
+const BIZ = [
+  { id: "muir",    key: "muir",   name: "MUIR WEB CO.", c: "#3FD0E0", ...SC.biz.muir },
+  { id: "cards",   key: "cards",  name: "CARD SHOP",    c: "#FF4D8D", ...SC.biz.cards },
+  { id: "pantreo", key: "stripe", name: "PANTREO",      c: "#FF7A33", ...SC.biz.pantreo },
+  { id: "clips",   key: "clips",  name: "CLIP STUDIO",  c: "#A98BFF", ...SC.biz.clips }
+];
+const NEEDLE = SC.needle, SCREEN = SC.screen, K = SC.k;
+
+/* ---------- layout: fit image to screen, plus user zoom/pan ---------- */
+let s = 1, ox = 0, oy = 0, kb = 1, W = innerWidth || 1, H = innerHeight || 1, s0 = 1, o0x = 0, o0y = 0, uz = 1, panX = 0, panY = 0;
+const KC = SC.KC;
+function layout(){
+  W = innerWidth; H = innerHeight;
+  const contain = !SC.cover && W / H > 0.75;
+  document.body.classList.toggle("contain", contain);
+  s0 = contain ? H / IH : Math.max(W / IW, H / IH);
+  const iw = IW * s0, ih = IH * s0;
+  o0x = iw > W ? Math.min(0, Math.max(W - iw, W / 2 - NEEDLE.saucer[0] * s0)) : (W - iw) / 2;
+  o0y = ih > H ? 0 : (H - ih) / 2;
+  const q = Math.min(2, Math.max(1, s0 * 2 * (devicePixelRatio || 1)));
+  fx.width = Math.round(IW * q); fx.height = Math.round(IH * q); g.setTransform(q, 0, 0, q, 0, 0);
+  if (GL) { const qg = Math.min(2.2, Math.max(1, s0 * 2.4 * (devicePixelRatio || 1))); gl.canvas.width = Math.round(IW * qg); gl.canvas.height = Math.round(IH * qg); gl.viewport(0, 0, gl.canvas.width, gl.canvas.height); }
+  clampPan(); effective();
+}
+function effective(){ const cx = W / 2, cy = H / 2; s = s0 * uz; ox = (o0x - cx) * uz + cx + panX; oy = (o0y - cy) * uz + cy + panY; }
+function clampPan(){
+  const cx = W / 2, cy = H / 2, sw = IW * s0 * uz, sh = IH * s0 * uz;
+  const bx = (o0x - cx) * uz + cx, by = (o0y - cy) * uz + cy;
+  panX = Math.min(cx - bx, Math.max(cx - bx - sw, panX));
+  panY = Math.min(cy - by, Math.max(cy - by - sh, panY));
+  if (uz === 1) { panX = 0; panY = 0; }
+}
+function applyWorld(){ world.style.transform = `translate(${ox}px,${oy}px) scale(${s}) translate(${KC[0]}px,${KC[1]}px) scale(${kb}) translate(${-KC[0]}px,${-KC[1]}px)`; }
+const toScreen = ([x, y]) => { const [px, py] = P(x, y); return [ox + (KC[0] + (px - KC[0]) * kb) * s, oy + (KC[1] + (py - KC[1]) * kb) * s]; };
+
+/* ---------- depth map (what's near vs far) for the parallax ---------- */
+const DS = 4, DW = Math.ceil(IW / DS), DH = Math.ceil(IH / DS), FOCUS = 0.36;
+const TOWERS = SC.towers;
+function inPoly(x, y, pts){ let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; }
+const depth = new Float32Array(DW * DH);
+(function buildDepth(){
+  for (let j = 0; j < DH; j++) for (let i = 0; i < DW; i++) {
+    const X = i * DS, Y = j * DS;
+    let d = SC.depth(Y);
+    if (TOWERS.some(t => inPoly(X, Y, t)) || ((X - NEEDLE.saucer[0]) ** 2 / NEEDLE.rx ** 2 + (Y - NEEDLE.saucer[1]) ** 2 / NEEDLE.ry ** 2) <= 1) d = FOCUS;
+    depth[j * DW + i] = d;
+  }
+  const tmp = new Float32Array(DW * DH);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let j = 0; j < DH; j++) for (let i = 0; i < DW; i++) { let a = 0, n = 0; for (let k = -2; k <= 2; k++) { const ii = i + k; if (ii >= 0 && ii < DW) { a += depth[j * DW + ii]; n++; } } tmp[j * DW + i] = a / n; }
+    for (let j = 0; j < DH; j++) for (let i = 0; i < DW; i++) { let a = 0, n = 0; for (let k = -2; k <= 2; k++) { const jj = j + k; if (jj >= 0 && jj < DH) { a += tmp[jj * DW + i]; n++; } } depth[j * DW + i] = a / n; }
+  }
+})();
+const depthAt = (x, y) => depth[Math.min(DH - 1, Math.max(0, Math.round(y / DS))) * DW + Math.min(DW - 1, Math.max(0, Math.round(x / DS)))];
+let offX = 0, offY = 0, tgtX = 0, tgtY = 0;           // parallax shift in image pixels
+const P = (x, y) => { const k = depthAt(x, y) - FOCUS; return [x + offX * k, y + offY * k]; };
+
+/* ---------- WebGL renderer for the parallax ---------- */
+let gl = null, GL = false, glU = null;
+function initGL(){
+  if (/[?&]flat/.test(location.search)) return false;
+  try {
+    gl = document.getElementById("gl").getContext("webgl", { premultipliedAlpha: false, antialias: false, preserveDrawingBuffer: true });
+    if (!gl) return false;
+    const vs = "attribute vec2 p; varying vec2 v; void main(){ v = vec2(p.x * .5 + .5, .5 - p.y * .5); gl_Position = vec4(p, 0., 1.); }";
+    const fs = "precision mediump float; uniform sampler2D im; uniform sampler2D dp; uniform vec2 off; uniform float f; varying vec2 v;" +
+      "void main(){ vec2 uv = v; for (int i = 0; i < 3; i++){ float d = texture2D(dp, uv).r; uv = v - off * (d - f); } gl_FragColor = texture2D(im, clamp(uv, vec2(0.), vec2(1.))); }";
+    const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pr); gl.useProgram(pr);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const tex = (unit, setup) => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); setup(); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); };
+    tex(0, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img));
+    const bytes = new Uint8Array(DW * DH); for (let k = 0; k < bytes.length; k++) bytes[k] = Math.round(depth[k] * 255);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    tex(1, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, DW, DH, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, bytes));
+    gl.uniform1i(gl.getUniformLocation(pr, "im"), 0); gl.uniform1i(gl.getUniformLocation(pr, "dp"), 1); gl.uniform1f(gl.getUniformLocation(pr, "f"), FOCUS);
+    glU = gl.getUniformLocation(pr, "off");
+    GL = true; document.body.classList.add("gl"); return true;
+  } catch (e) { GL = false; document.body.classList.remove("gl"); return false; }
+}
+function disableGL(reason){ GL = false; document.body.classList.remove("gl"); const c = document.getElementById("gl"); c.style.display = "none"; fxNote = reason || ""; }
+function verifyGL(){ // render once with no shift and compare against the real image; switch off if this GPU draws it wrong
+  if (!GL) return;
+  try {
+    gl.uniform2f(glU, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const c = document.createElement("canvas"); c.width = IW; c.height = IH; const x = c.getContext("2d"); x.drawImage(img, 0, 0);
+    let bad = 0; const px = new Uint8Array(4);
+    [[.3,.3],[.5,.2],[.7,.6],[.5,.8],[.2,.7],[.8,.35],[.45,.55]].forEach(([u, v]) => {
+      gl.readPixels(Math.floor(u * gl.canvas.width), Math.floor((1 - v) * gl.canvas.height), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const d = x.getImageData(Math.floor(u * IW), Math.floor(v * IH), 1, 1).data;
+      if (Math.abs(px[0] - d[0]) + Math.abs(px[1] - d[1]) + Math.abs(px[2] - d[2]) > 90) bad++;
+    });
+    if (bad > 1) disableGL("3D EFFECT OFF ON THIS DEVICE");
+  } catch (e) { disableGL("3D EFFECT OFF ON THIS DEVICE"); }
+}
+let fxNote = "";
+function drawGL(){ if (!GL) return; gl.uniform2f(glU, offX / IW, offY / IH); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+
+/* ---------- chips on the towers + dock cards ---------- */
+const chipsEl = document.getElementById("chips"), cardsEl = document.getElementById("cards");
+BIZ.forEach(b => {
+  const ch = document.createElement("button"); ch.type = "button"; ch.className = "chip"; ch.style.setProperty("--c", b.c);
+  ch.innerHTML = `<span class="n">${b.name}</span><span class="v">—</span>`; ch.onclick = () => openBiz(b); b.chipEl = ch; chipsEl.appendChild(ch);
+  const cd = document.createElement("button"); cd.type = "button"; cd.className = "card"; cd.style.setProperty("--c", b.c);
+  cd.innerHTML = `<span class="n">${b.name}</span><span class="v">—</span><span class="s">loading</span>`; cd.onclick = () => openBiz(b); b.cardEl = cd; cardsEl.appendChild(cd);
+});
+const opsChip = document.createElement("button"); opsChip.type = "button"; opsChip.className = "chip ops"; opsChip.style.setProperty("--c", "#FFB020");
+opsChip.innerHTML = `<span class="n">OPS</span>`; opsChip.setAttribute("aria-label", "OPS, the manager AI"); opsChip.onclick = openOps; chipsEl.appendChild(opsChip);
+function placeChips(){
+  BIZ.forEach(b => { const [x, y] = toScreen(b.chip); b.chipEl.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`; });
+  const [x, y] = toScreen(NEEDLE.chip); opsChip.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`;
+}
+
+/* ---------- effects ---------- */
+const glowCache = {};
+function glowSprite(col){ if (glowCache[col]) return glowCache[col]; const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"); const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, `rgba(${col},1)`); gr.addColorStop(0.25, `rgba(${col},.5)`); gr.addColorStop(1, `rgba(${col},0)`); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return glowCache[col] = c; }
+const rgb = h => { const n = parseInt(h.slice(1), 16); return `${n >> 16 & 255},${n >> 8 & 255},${n & 255}`; };
+function glow(x, y, r, col, a){ g.globalAlpha = Math.max(0, Math.min(1, a)); g.drawImage(glowSprite(col), x - r, y - r, r * 2, r * 2); g.globalAlpha = 1; }
+
+let twinkles = [];
+function findLights(){ // sample bright pixels from the render so twinkles sit on real windows
+  try {
+    const c = document.createElement("canvas"); c.width = IW; c.height = IH; const x = c.getContext("2d"); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, IW, IH).data; const pts = [];
+    for (let k = 0; k < 24000 && pts.length < 240; k++) {
+      const px = Math.floor(Math.random() * IW), py = SC.lightsFrom + Math.floor(Math.random() * (IH - SC.lightsFrom - 20)), i = (py * IW + px) * 4;
+      const r = d[i], gg = d[i + 1], b = d[i + 2];
+      if (r + gg + b > 640) pts.push({ x: px, y: py, col: `${r},${gg},${b}`, ph: Math.random() * 6.28, sp: 0.02 + Math.random() * 0.05, r: 3 + Math.random() * 5 });
+    }
+    twinkles = pts;
+  } catch (e) { twinkles = []; }
+}
+const lanes = SC.lanes;
+const cars = Array.from({ length: 9 }, (_, i) => ({ lane: lanes[i % lanes.length], t: Math.random(), v: 0.0012 + Math.random() * 0.0018 }));
+function cloudSprite(){ const c = document.createElement("canvas"); c.width = 512; c.height = 160; const x = c.getContext("2d");
+  for (let k = 0; k < 70; k++) { const cx = Math.random() * 512, cy = 50 + Math.random() * 70, r = 20 + Math.random() * 50; const gr = x.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, "rgba(230,215,235,.12)"); gr.addColorStop(1, "rgba(230,215,235,0)"); x.fillStyle = gr; x.fillRect(cx - r, cy - r, r * 2, r * 2); }
+  return c; }
+const cloud = cloudSprite();
+const fogBands = SC.fog;
+const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+let t = 0;
+function draw(){
+  g.clearRect(0, 0, IW, IH);
+  g.globalCompositeOperation = "lighter";
+  // needle beam flicker + saucer sweep
+  const fl = 0.55 + 0.25 * Math.sin(t * 0.21) + 0.1 * Math.sin(t * 0.9);
+  const bm = g.createLinearGradient(0, 0, 0, NEEDLE.tip[1]); bm.addColorStop(0, "rgba(140,170,255,0)"); bm.addColorStop(1, `rgba(170,190,255,${0.35 * fl})`);
+  const NT = P(NEEDLE.tip[0], NEEDLE.tip[1]), NS = P(NEEDLE.saucer[0], NEEDLE.saucer[1]);
+  g.fillStyle = bm; g.fillRect(NT[0] - 3, 0, 6, NT[1]);
+  for (let k = 0; k < 3; k++) { const a = t * 0.03 + k * 2.09; if (Math.sin(a) < -0.2) continue; glow(NS[0] + Math.cos(a) * NEEDLE.rx * 0.9, NS[1] + Math.sin(a) * NEEDLE.ry * 0.35, 10 * K, "255,200,110", 0.85); }
+  glow(NS[0], NS[1], (70 + Math.sin(t * 0.05) * 10) * K, "255,170,60", 0.22);
+  glow(NT[0], NT[1], 12 * K, "255,90,70", Math.sin(t * 0.12) > 0 ? 0.95 : 0.15);
+  // data pulses from the needle to each tower
+  BIZ.forEach((b, i) => { for (let k = 0; k < 2; k++) { const f = ((t * 0.006 + k / 2 + i * 0.17) % 1); const [x, y] = lerp(NS, P(b.mid[0], b.mid[1]), f); glow(x, y, 9 * K, rgb(b.c), 0.75 * Math.sin(f * Math.PI)); } });
+  // tower beacons
+  BIZ.forEach((b, i) => { const q = P(b.tip[0], b.tip[1]); glow(q[0], q[1], 14 * K, rgb(b.c), 0.35 + 0.6 * (Math.sin(t * 0.09 + i * 1.4) > 0.3 ? 1 : 0.2)); });
+  // video screen shimmer
+  g.save(); g.beginPath(); SCREEN.forEach((p0, i) => { const p = P(p0[0], p0[1]); i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); }); g.closePath(); g.clip();
+  const sy0 = Math.min(...SCREEN.map(p => p[1])), sy1 = Math.max(...SCREEN.map(p => p[1])), sy = sy0 - 20 + ((t * 2.2 * K) % (sy1 - sy0 + 40)); const sg = g.createLinearGradient(0, sy - 40, 0, sy + 40); sg.addColorStop(0, "rgba(190,160,255,0)"); sg.addColorStop(0.5, "rgba(210,190,255,.28)"); sg.addColorStop(1, "rgba(190,160,255,0)"); g.fillStyle = sg; g.fillRect(SCREEN[0][0] - 30, sy - 60, SCREEN[1][0] - SCREEN[0][0] + 60, 120); g.restore();
+  // window twinkles
+  twinkles.forEach(p => { const v = Math.sin(t * p.sp + p.ph); if (v > 0.55) { const q = P(p.x, p.y); glow(q[0], q[1], p.r * K, p.col, (v - 0.55) * 1.6); } });
+  // flying cars
+  cars.forEach(c => {
+    if (!REDUCED) { c.t += c.v; if (c.t > 1) { c.t = 0; c.lane = lanes[Math.floor(Math.random() * lanes.length)]; c.v = 0.0012 + Math.random() * 0.0018; } }
+    const r0 = lerp(c.lane.a, c.lane.b, c.t), r1 = lerp(c.lane.a, c.lane.b, Math.max(0, c.t - 0.07)); const [x, y] = P(r0[0], r0[1]), [tx, ty] = P(r1[0], r1[1]);
+    const depth = (0.55 + (y / IH) * 0.9) * (K < 1 ? 0.8 : 1);
+    const tr = g.createLinearGradient(tx, ty, x, y); tr.addColorStop(0, `rgba(${c.lane.col},0)`); tr.addColorStop(1, `rgba(${c.lane.col},.7)`);
+    g.strokeStyle = tr; g.lineWidth = 2.2 * depth; g.lineCap = "round"; g.beginPath(); g.moveTo(tx, ty); g.lineTo(x, y); g.stroke();
+    glow(x, y, 9 * depth, "255,255,255", 0.9); glow(x, y, 18 * depth, c.lane.col, 0.5);
+  });
+  // drifting fog
+  g.globalCompositeOperation = "source-over";
+  fogBands.forEach(f => { const off = ((t * f.v - offX * (depthAt(IW / 2, f.y + f.h / 2) - FOCUS)) % 512 + 512) % 512; const fy = f.y + offY * (depthAt(IW / 2, f.y + f.h / 2) - FOCUS); g.globalAlpha = f.a; for (let x = -off; x < IW; x += 512) g.drawImage(cloud, x, fy, 512, f.h); g.globalAlpha = 1; });
+}
+let lastInput = -9999, started = false;
+function frame(){
+  t++;
+  const idle = t - lastInput > 120;
+  if (idle && !REDUCED) { tgtX = Math.sin(t * 0.008) * 10; tgtY = Math.cos(t * 0.006) * 5; }
+  if (!isFinite(tgtX)) tgtX = 0; if (!isFinite(tgtY)) tgtY = 0;
+  offX += (tgtX - offX) * 0.08; offY += (tgtY - offY) * 0.08;
+  if (!isFinite(offX)) offX = 0; if (!isFinite(offY)) offY = 0; if (!isFinite(uz) || uz < 1) uz = 1; if (!isFinite(panX)) panX = 0; if (!isFinite(panY)) panY = 0;
+  if (!REDUCED && uz === 1 && idle) kb = 1 + 0.03 * (1 - Math.cos(t / 30 * 2 * Math.PI / 40)) / 2;
+  effective(); applyWorld();
+  try { drawGL(); } catch (e) { disableGL("3D EFFECT ERROR: " + (e.message || e)); }
+  try { draw(); } catch (e) { if (!fxNote) fxNote = "FX ERROR: " + String(e.message || e).slice(0, 60); }
+  placeChips();
+}
+
+/* ---------- zoom, pan and look-around ---------- */
+const touch = document.getElementById("touch"), ptrs = new Map(); let pinch = 0;
+function zoomAt(qx, qy, f){
+  const nz = Math.min(3, Math.max(1, uz * f)); if (nz === uz) return;
+  const cx = W / 2, cy = H / 2;
+  panX = qx - cx - (qx - cx - panX) * nz / uz; panY = qy - cy - (qy - cy - panY) * nz / uz; uz = nz;
+  if (uz === 1) { panX = 0; panY = 0; } clampPan(); lastInput = t;
+}
+touch.addEventListener("pointerdown", e => { touch.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); touch.classList.add("drag"); lastInput = t; });
+touch.addEventListener("pointermove", e => {
+  if (!ptrs.has(e.pointerId)) {
+    if (e.pointerType === "mouse" && started) { tgtX = Math.max(-16, Math.min(16, (e.clientX / W - 0.5) * 2 * 16)); tgtY = Math.max(-8, Math.min(8, (e.clientY / H - 0.5) * 2 * 8)); lastInput = t; }
+    return;
+  }
+  const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); lastInput = t;
+  if (ptrs.size === 1) {
+    const dx = e.clientX - prev[0], dy = e.clientY - prev[1];
+    if (uz > 1) { panX += dx; panY += dy; clampPan(); }
+    tgtX = Math.max(-18, Math.min(18, tgtX + dx * 0.12)); tgtY = Math.max(-10, Math.min(10, tgtY + dy * 0.08));
+  } else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinch) zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, d / pinch); pinch = d;
+  }
+});
+const lift = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; if (!ptrs.size) touch.classList.remove("drag"); };
+touch.addEventListener("pointerup", lift); touch.addEventListener("pointercancel", lift);
+touch.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !ptrs.size) lastInput = t - 60; });
+touch.addEventListener("wheel", e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016)); }, { passive: false });
+touch.addEventListener("dblclick", () => { uz = 1; panX = 0; panY = 0; lastInput = t; });
+
+/* ---------- live money ---------- */
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k, v){ try { localStorage.setItem(k, v); } catch(e){} } };
+let PASS = store.get("cc.pass") || "", DATA = null, period = store.get("cc.period") || "week";
+const money = n => "$" + Math.round(n || 0).toLocaleString("en-US");
+const ago = ms => { if (!ms) return "no deposits yet"; const sec = (Date.now() - ms) / 1000; if (sec < 3600) return "last deposit " + Math.max(1, Math.floor(sec / 60)) + "m ago"; if (sec < 86400) return "last deposit " + Math.floor(sec / 3600) + "h ago"; return "last deposit " + Math.floor(sec / 86400) + "d ago"; };
+const trend = (cur, prev) => { if (!prev && !cur) return ""; if (!prev) return "▲ new"; const p = Math.round((cur - prev) / prev * 100); return (p > 0 ? "▲ " : p < 0 ? "▼ " : "▬ ") + Math.abs(p) + "%"; };
+const LABEL = { today: "TODAY", week: "THIS WEEK", month: "THIS MONTH" };
+const pick = o => period === "today" ? [o.today, o.yesterday || 0] : period === "week" ? [o.week, o.prevWeek] : [o.month, o.prevMonthSamePoint];
+const DOING = {
+  pantreo: "Stripe payouts land here for now, including any Muir Web Co. invoices paid through Stripe. Connecting Stripe directly will split them exactly.",
+  clips: "Clip payouts (creator programs, clipping campaigns) land here once they start.",
+  muir: "Direct client payments to Mercury land here. Stripe invoices show under Pantreo until Stripe is connected.",
+  cards: "Whatnot and eBay payouts to Mercury land here automatically."
+};
+function renderMoney(){
+  if (!DATA) return;
+  const [cur, prev] = pick(DATA.total);
+  document.getElementById("hudCap").textContent = LABEL[period]; document.getElementById("dockCap").textContent = LABEL[period];
+  document.getElementById("hudTotal").textContent = money(cur);
+  document.getElementById("hudTrend").textContent = period === "today" ? "" : trend(cur, prev);
+  BIZ.forEach(b => {
+    const o = DATA.by[b.key] || {}; const [c, pv] = pick(o), tr = period === "today" ? "" : trend(c, pv);
+    b.data = { val: money(c), trend: tr, month: money(o.month), status: ago(o.last) };
+    b.chipEl.querySelector(".v").textContent = money(c);
+    b.cardEl.querySelector(".v").innerHTML = `${money(c)}<i>${tr}</i>`; b.cardEl.querySelector(".s").textContent = ago(o.last);
+    b.chipEl.setAttribute("aria-label", `${b.name}: ${money(c)} ${LABEL[period].toLowerCase()}`);
+  });
+  const u = DATA.by.unsorted || {};
+  if (img.style.visibility !== "hidden") document.getElementById("live").innerHTML = `<span class="dot"></span>${DATA.sample ? "SAMPLE DATA" : "LIVE · MERCURY"}${u.month ? " · " + money(u.month) + " UNSORTED" : ""}${fxNote ? " · " + fxNote.replace(/[<>&]/g, "") : ""}`;
+}
+async function loadMoney(){
+  if (!PASS) { document.getElementById("pass").hidden = false; return; }
+  try {
+    const r = await fetch("/api/money", { headers: { "x-passcode": PASS } });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) { PASS = ""; store.set("cc.pass", ""); document.getElementById("passErr").textContent = "That passcode didn't work."; document.getElementById("pass").hidden = false; return; }
+    if (!r.ok) throw new Error(d.error || "Server error " + r.status);
+    DATA = d; renderMoney(); loadClips();
+  } catch (e) { document.getElementById("live").textContent = "OFFLINE · " + String(e.message || e).toUpperCase().slice(0, 50); }
+}
+document.getElementById("passForm").onsubmit = e => { e.preventDefault(); const v = document.getElementById("passIn").value.trim(); if (!v) return; PASS = v; store.set("cc.pass", v); document.getElementById("pass").hidden = true; document.getElementById("passErr").textContent = ""; loadMoney(); };
+document.getElementById("hudBtn").onclick = () => { period = period === "today" ? "week" : period === "week" ? "month" : "today"; store.set("cc.period", period); renderMoney(); };
+
+/* ---------- clip studio: YouTube stats ---------- */
+let CLIPS = null;
+const fmtN = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
+async function loadClips(){
+  try {
+    const r = await fetch("/api/clips", { headers: { "x-passcode": PASS } });
+    const d = await r.json().catch(() => ({}));
+    CLIPS = r.ok ? d : { connected: false, reason: d.error || "Couldn't load YouTube stats." };
+  } catch (e) { CLIPS = { connected: false, reason: "Couldn't reach YouTube stats." }; }
+  const b = BIZ.find(x => x.id === "clips");
+  if (b && CLIPS.connected) {
+    const T = CLIPS.totals, s = `${T.count} short${T.count === 1 ? "" : "s"} · ${fmtN(T.views)} views · ~${money(T.est)} est.`;
+    b.cardEl.querySelector(".s").textContent = s; if (b.data) b.data.status = s;
+  }
+}
+function clipsHtml(){
+  if (!CLIPS) return "<p>Loading YouTube stats…</p>";
+  if (!CLIPS.connected) return `<p>${String(CLIPS.reason || "YouTube not connected.").replace(/[<>&]/g, "")}</p>`;
+  const C = CLIPS.channel, T = CLIPS.totals;
+  const head = `<div class="dep"><span>${C.title.replace(/[<>&]/g, "")}<small>${C.handle} · ${fmtN(C.subscribers)} subscribers</small></span><b>${fmtN(T.views)} views</b></div>`;
+  const rows = CLIPS.videos.map(v => {
+    const eng = (v.engagement * 100).toFixed(1) + "%", warn = v.views >= 200 && v.engagement < 0.01;
+    return `<div class="dep"><span><a href="${v.url}" target="_blank" rel="noopener" style="color:inherit">${v.title.replace(/[<>&]/g, "")}</a><small>${fmtN(v.views)} views · ${eng} engagement${warn ? " ⚠ under 1%" : ""}${v.toMin ? " · " + fmtN(v.toMin) + " more views to get paid" : ""}</small></span><b>${v.est ? "~" + money(v.est) : "$0"}</b></div>`;
+  }).join("") || "<p>No Shorts yet.</p>";
+  return head + rows + `<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Estimates use $1 per 1,000 views ($2 minimum, $300 max per video). Whop pays the real amount, which lands in Mercury and shows on this tower.</p>`;
+}
+
+/* ---------- sheets ---------- */
+const scrim = document.getElementById("scrim");
+function openSheet(o){
+  const h = document.getElementById("sh-t"); h.textContent = o.name; h.style.color = o.c;
+  document.getElementById("sh-s").textContent = o.status;
+  document.getElementById("sh-g").innerHTML = `<div class="stat"><small>${o.l1 || "This week"}</small><b>${o.v1}</b></div><div class="stat"><small>This month</small><b>${o.month}</b></div><div class="stat"><small>Trend</small><b>${o.trend || "—"}</b></div>`;
+  const d = document.getElementById("sh-d"); if (o.html) { d.innerHTML = o.html; d.className = "doing deps"; } else { d.textContent = o.doing; d.className = "doing"; }
+  scrim.classList.add("on"); document.getElementById("sh-x").focus();
+}
+function closeSheet(){ scrim.classList.remove("on"); }
+document.getElementById("sh-x").onclick = closeSheet;
+scrim.onclick = e => { if (e.target === scrim) closeSheet(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+function openBiz(b){ const d = b.data || { val: "—", month: "—", trend: "", status: "loading" }; openSheet({ name: b.name, c: b.c, status: d.status, l1: LABEL[period].toLowerCase().replace(/^./, m => m.toUpperCase()), v1: d.val, month: d.month, trend: d.trend, doing: DOING[b.id], html: b.id === "clips" ? clipsHtml() : null }); }
+function openOps(){ const T = DATA ? DATA.total : null; openSheet({ name: "OPS", c: "#FFB020", status: "Money tracking live · agents not connected yet", v1: T ? money(T.week) : "—", month: T ? money(T.month) : "—", trend: T ? trend(T.week, T.prevWeek) : "", doing: "OPS reads every deposit in Mercury and sorts it to the right tower. Next up: Stripe (to split Pantreo and Muir Web Co.), then push notifications and approvals, then the card shop agent." }); }
+document.getElementById("depBtn").onclick = () => {
+  if (!DATA) return;
+  const rows = DATA.recent.map(d => `<div class="dep"><span>${String(d.from).replace(/[<>&]/g, "")}<small>${new Date(d.at).toLocaleDateString()} · ${({ muir: "Muir Web Co.", cards: "Card shop", stripe: "Stripe", clips: "Clip studio", unsorted: "Unsorted" })[d.biz]}</small></span><b>+${money(d.amt)}</b></div>`).join("") || "<p>No deposits in the last two months.</p>";
+  openSheet({ name: "DEPOSITS", c: "#FFB020", status: "Straight from Mercury, newest first", v1: money(DATA.total.week), month: money(DATA.total.month), trend: trend(DATA.total.week, DATA.total.prevWeek), html: rows });
+};
+
+/* ---------- boot ---------- */
+function start(){
+  initGL(); layout(); verifyGL(); applyWorld(); findLights(); frame();
+  if (fxNote) setTimeout(renderMoney, 0);
+  if (!REDUCED) { let last = 0; (function loop(ts){ requestAnimationFrame(loop); if (document.hidden) return; if (ts - last < 33) return; last = ts; frame(); })(0); }
+}
+function startOnce(){ if (started) return; started = true; start(); }
+function imgFailed(){ img.style.visibility = "hidden"; document.body.style.background = "radial-gradient(ellipse at 50% 30%,#2A2140,#0A0D16 70%)";
+  const l = document.getElementById("live"); if (l) l.textContent = "CITY IMAGE MISSING · UPLOAD " + SC.src + " TO THE REPO"; startOnce(); }
+img.addEventListener("load", startOnce); img.addEventListener("error", imgFailed); if (img.complete && img.naturalWidth) startOnce();
+addEventListener("resize", () => { if ((innerWidth / innerHeight >= 1 ? "wide" : "phone") !== SCENE_KEY) { location.reload(); return; } layout(); frame(); });
+loadMoney(); setInterval(loadMoney, 5 * 60 * 1000);
+})();
+</script>
+</body>
+</html>
